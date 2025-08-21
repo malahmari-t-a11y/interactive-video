@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>فيديو تفاعلي</title>
+  <link href="https://vjs.zencdn.net/7.14.3/video-js.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #000;
+      color: #111;
+    }
+    /* لوحة التقدم */
+    #progress-panel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      z-index: 1100;
+    }
+    .star {
+      width: 40px;
+      height: 40px;
+      background-color: grey;
+      clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+      transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .star.filled { background-color: gold; transform: scale(1.2); box-shadow: 0 0 10px gold; }
+    #timer { font-size: 20px; font-weight: bold; color: white; }
+    /* نافذة السؤال */
+    #question-overlay {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(800px, 90%);
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      padding: 16px;
+      border-radius: 10px;
+    }
+    #question-box {
+      background: white;
+      color: #111;
+      padding: 20px;
+      border-radius: 10px;
+      width: 100%;
+      margin: auto;
+      position: relative;
+      box-sizing: border-box;
+    }
+    #question-box p { margin-bottom: 20px; }
+    #question-box button {
+      margin: 5px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #f8f8f8;
+    }
+    #question-box button:hover { background: #eee; }
+    .correct { background: #4CAF50 !important; color: white; }
+    .incorrect { background: #f44336 !important; color: white; }
+    #note {
+      display: none;
+      margin-top: 10px;
+      background: #fffae6;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ffc107;
+    }
+    /* التفريغ النصي */
+    #transcript-container {
+      display: none;
+      background: white;
+      padding: 20px;
+      box-sizing: border-box;
+      color: black;
+      border-top: 1px solid #ccc;
+      width: 100%;
+      overflow-y: auto;
+      max-height: 240px;
+      position: relative;
+    }
+    #transcript-toggle {
+      display: inline-block;
+      margin: 10px;
+      padding: 10px 20px;
+      background: white;
+      color: black;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s ease, color 0.3s ease;
+      text-align: center;
+    }
+    #transcript-toggle:hover { background: #f0f0f0; }
+    /* غلاف الفيديو بنسبة 16:9 */
+    .video-wrap {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      max-width: 100%;
+      background: #000;
+    }
+    .video-wrap iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      z-index: 100;
+    }
+    /* نافذة الملخص */
+    #summary-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1200;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      padding: 16px;
+    }
+    #summary-box {
+      background: white;
+      color: #111;
+      padding: 24px;
+      border-radius: 12px;
+      width: min(600px, 90%);
+    }
+    #close-summary {
+      margin-top: 12px;
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #f8f8f8;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-panel">
+    <div id="stars">
+      <div class="star" id="star1"></div>
+      <div class="star" id="star2"></div>
+    </div>
+    <div id="timer">00:00</div>
+  </div>
+
+  <div class="video-wrap">
+    <iframe id="vimeo-player" src="https://player.vimeo.com/video/924900270?autoplay=1&muted=0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+  </div>
+
+  <button id="transcript-toggle" onclick="toggleTranscript()">عرض التفريغ النصي</button>
+  <div id="transcript-container">
+    <div id="transcript">
+      <h3>تفريغ نصي لمحتوى الفيديو</h3>
+      <p>إدارة بيانات المتعلم شخصية.</p>
+      <p>تلتزم المؤسسات التعليمية والتدريبية بحماية خصوصية المتعلمين عن طريق إنفاذ القوانين المرتبطة بالخصوصية والحقوق التعليمية التي تمنح المتعلمين التحكم بسجلات لهم التعليمية. ويطلب إلى المؤسسات التعليمية والمعلمين والموظفين الامتثال لخصوصية بيانات المتعلمين ولوائح الأمان عبر الإنترنت. تعد حماية أي بيانات أو معلومات يمكن التعرف إليها أمرا ضروريا لأسباب تتعلق بسلامة المتعلمين وأمنهم. وتتكون بيانات المتعلم من معلومات التعريف الشخصية التي تتضمن الإسم وتاريخ الميلاد ورقم الهاتف والعنوان والمعلومات السكنية وبيانات اعتماد تسجيل الدخول. ويمكن أن يكون الاختراق هذه البيانات أثار طويلة المدى على المتعلمين وعائلاتهم. ونظرا إلى أهمية الوعي بمفهوم البيانات والتعاريف الخاصة بها وفقا للمصطلحات المعتمدة في الهيئة السعودية للبيانات والذكاء الاصطناعي سادية، فهي كما يأتي واحد البيانات مجموعة من الحقائق في صورتها الأولية أو في صورة غير منظمة مثل الأرقام، أو الحروف، أو الصور الثابتة، أو الفيديو، أو التسجيلات الصوتية أو الرموز التعبيرية. اثنان، البيانات الشخصية. كل بيان مهما كان مصدره أو شكله من شأنه أن يؤدي إلى معرفة الفرد على وجه التحديد أو يجعله قابلا للتعرف إليه بصفة مباشرة أو غير مباشرة عند دمجه مع بيانات أخرى. ويشمل ذلك على سبيل المثال لا الحصر الاسم وأرقام الهوية الشخصية والعناوين وأرقام التواصل وأرقام الحسابات البنكية والبطاقات الائتمانية وصور المستخدم الثابتة أو المتحركة وغير ذلك من البيانات ذات الطابع الشخصي. ثلاثة، الوصول إلى البيانات القدرة على الوصول المنطقي والمادي إلى البيانات والموارد التقنية للجهة لغرض استخدامها أربعة، مستوى الوصول إلى البيانات. مستوى يعتمد على الأذونات والصلاحيات التي تقيد الوصول إلى البيانات والموارد التقنية للأشخاص المصرح لهم وفقا لما هو مطلوب لإنجاز المهام والمسؤوليات المناطة بهم. خمسة، التحقق التأكد من هوية أي مستخدم أو عملية أو جهاز بوصفه متطلبا أساسيا للسماح بالوصول إلى الموارد التقنية. ستة، التصريح تعريف حقوق وصلاحيات الوصول إلى البيانات والموارد التقنية لأي مستخدم أو برنامج أو عملية والتحكم بمستويات الوصول إليها. سبعة، توافر البيانات ضمان إمكانية الوصول المناسب والموثوق إلى البيانات واستخدامها عند الحاجة. ثمانية، سرية البيانات. الحفاظ على القيود المصرح بها للوصول إلى البيانات أو الإفصاح عنها. سلامة البيانات. حماية البيانات من أي تعديل أو إتلاف غير مصرح به. عشرة البيانات المحمية. البيانات المصنفة على أنها سري للغاية. سري مقيد إحدى عشر البيانات المفتوحة. مجموعة محددة من المعلومات العامة مقروءة أليا تكون متاحة للعموم مجانا ودون قيود، ويمكن لأي فرد، أو جهة عامة، أو خاصة استخدامها، أو مشاركتها. اثنا عشر البيانات الحساسة البيانات التي يؤدي فقدانها أو إساءة استخدامها أو الوصول غير المصرح به إليها أو تعديلها إلى ضرر جسيم أو تأثير سلبي في المصالح الوطنية أو أنشطة الجهات الحكومية أو خصوصية الأفراد وحماية حقوقهم. ثلاثة عشر الإفصاح عن البيانات تمكين أي شخص عدا جهة التحكم من الحصول على البيانات الشخصية أو استعمالها أو الاطلاع عليها بأي وسيلة ولأي غرض.</p>
+    </div>
+  </div>
+
+  <div id="question-overlay">
+    <div id="question-box">
+      <p id="question-text">ما هو تعلم الآلة؟</p>
+      <button id="option1">—</button>
+      <button id="option2">—</button>
+      <p id="feedback" style="display:none;"></p>
+      <div id="note"></div>
+    </div>
+  </div>
+
+  <div id="summary-overlay">
+    <div id="summary-box">
+      <p id="summary-text"></p>
+      <button id="close-summary" onclick="cancelSummary()">إغلاق</button>
+    </div>
+  </div>
+
+  <script src="https://player.vimeo.com/api/player.js"></script>
+  <script>
+    // Vimeo player
+    var vimeoIframe = document.getElementById('vimeo-player');
+    var player = new Vimeo.Player(vimeoIframe);
+
+    // الأسئلة
+    var questions = [
+      { time: 29, text: 'تعد حماية أي بيانات أو معلومات يمكن التعرف إليها أمرا ضروريا لأسباب تتعلق بسلامة المتعلمين وأمنهم.', correct: 'صح', options: ['صح', 'خطأ'], hint: '' },
+      { time: 40, text: 'تتكون بيانات المتعلم من معلومات التعريف الشخصية من:', correct: 'الإسم وتاريخ الميلاد ورقم الهاتف', options: ['الإسم وتاريخ الميلاد فقط', 'الإسم وتاريخ الميلاد ورقم الهاتف'], hint: '' }
+    ];
+
+    var currentQuestion = 0;
+    var correctAnswers = 0;
+    var timerInterval = null;
+    var startTime;
+    var answeredQuestions = new Set();
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      startTime = Date.now();
+      timerInterval = setInterval(function() {
+        var elapsed = Date.now() - startTime;
+        var minutes = Math.floor(elapsed / 60000);
+        var seconds = Math.floor((elapsed % 60000) / 1000);
+        document.getElementById('timer').textContent =
+          minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+      }, 1000);
+    }
+
+    function showQuestion(index) {
+      var question = questions[index];
+      document.getElementById('question-text').textContent = question.text;
+
+      var btn1 = document.getElementById('option1');
+      var btn2 = document.getElementById('option2');
+      btn1.textContent = question.options[0];
+      btn2.textContent = question.options[1];
+      btn1.onclick = function () { answerQuestion(index, question.options[0]); };
+      btn2.onclick = function () { answerQuestion(index, question.options[1]); };
+
+      document.getElementById('note').style.display = 'none';
+      document.getElementById('question-overlay').style.display = 'flex';
+    }
+
+    function answerQuestion(index, answer) {
+      var question = questions[index];
+      var feedback = document.getElementById('feedback');
+      var note = document.getElementById('note');
+
+      if (!answeredQuestions.has(index)) {
+        if (answer === question.correct) {
+          feedback.textContent = 'إجابة صحيحة!';
+          feedback.className = 'correct';
+          correctAnswers++;
+          answeredQuestions.add(index);
+
+          var starEl = document.getElementById('star' + correctAnswers);
+          if (starEl) starEl.classList.add('filled');
+
+          currentQuestion++;
+          if (currentQuestion < questions.length) {
+            setTimeout(function() {
+              document.getElementById('question-overlay').style.display = 'none';
+              feedback.style.display = 'none';
+              player.play();
+            }, 1500);
+          } else {
+            setTimeout(function() {
+              document.getElementById('question-overlay').style.display = 'none';
+              feedback.style.display = 'none';
+              if (timerInterval) clearInterval(timerInterval);
+              player.pause().then(function() { showSummary(); }).catch(function(e){ console.error(e); });
+            }, 1500);
+          }
+        } else {
+          feedback.textContent = 'إجابة خاطئة. حاول مرة أخرى.';
+          feedback.className = 'incorrect';
+          note.textContent = question.hint || '';
+          note.style.display = note.textContent ? 'block' : 'none';
+        }
+        feedback.style.display = 'block';
+      }
+    }
+
+    function showSummary() {
+      var summaryText = 'لقد أجبت على ' + correctAnswers + ' من أصل ' + questions.length + ' أسئلة بشكل صحيح.';
+      var overlay = document.getElementById('summary-overlay');
+      var textEl = document.getElementById('summary-text');
+      if (overlay && textEl) {
+        textEl.textContent = summaryText;
+        overlay.style.display = 'flex';
+      } else {
+        alert(summaryText);
+      }
+    }
+
+    function cancelSummary() {
+      var overlay = document.getElementById('summary-overlay');
+      if (overlay) overlay.style.display = 'none';
+    }
+
+    function toggleTranscript() {
+      var container = document.getElementById('transcript-container');
+      var btn = document.getElementById('transcript-toggle');
+      if (container.style.display === 'none' || container.style.display === '') {
+        container.style.display = 'block';
+        btn.textContent = 'إخفاء التفريغ النصي';
+      } else {
+        container.style.display = 'none';
+        btn.textContent = 'عرض التفريغ النصي';
+      }
+    }
+
+    // أحداث الفيديو
+    player.on('play', startTimer);
+    player.on('timeupdate', function(data) {
+      if (currentQuestion < questions.length && data.seconds >= questions[currentQuestion].time) {
+        player.pause().then(function() { showQuestion(currentQuestion); }).catch(function(e){ console.error(e); });
+      }
+      if (Math.floor(data.seconds) >= Math.floor(data.duration) - 1) {
+        if (timerInterval) clearInterval(timerInterval);
+      }
+    });
+  </script>
+</body>
+</html>
